@@ -8,6 +8,7 @@ import de.photon.anticheataddition.modules.additions.informationhider.Durability
 import de.photon.anticheataddition.modules.additions.informationhider.EnchantmentHider;
 import de.photon.anticheataddition.modules.additions.informationhider.ItemCountHider;
 import de.photon.anticheataddition.modules.checks.autoeat.AutoEat;
+import de.photon.anticheataddition.modules.checks.autotool.AutoTool;
 import de.photon.anticheataddition.modules.checks.autofish.AutoFishConsistency;
 import de.photon.anticheataddition.modules.checks.autofish.AutoFishInhumanReaction;
 import de.photon.anticheataddition.modules.checks.autopotion.AutoPotion;
@@ -53,6 +54,8 @@ public final class ModuleManager
 
                 // Checks
                 AutoEat.INSTANCE,
+
+                AutoTool.INSTANCE,
 
                 ViolationModule.parentOf("AutoFish", AutoFishConsistency.INSTANCE, AutoFishInhumanReaction.INSTANCE),
 

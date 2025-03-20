@@ -59,6 +59,8 @@ public enum TimeKey
 
     WORLD_CHANGE,
 
+    TOOL_SWITCH,
+
     XYZ_MOVEMENT,
     XZ_MOVEMENT
 }

@@ -125,6 +125,26 @@ AutoEat:
     120: "<YOUR_STAFFCHAT_COMMAND> {player} in {world} is highly suspected for AutoEat"
     200: "kick {player} AutoEat"
 
+# AutoTool detects automated or unnatural tool usage patterns.
+# This check looks for tool switching and usage that seems bot-like.
+AutoTool:
+  enabled: true
+  # VL at which tool usages are cancelled. Set to 0 for no cancellations.
+  cancel_vl: 50
+  # Maximum ping to apply this check. Set to -1 to disable.
+  max_ping: 400
+  # Whether to check for rapid tool switching
+  check_tool_switch: true
+  # The minimum interval between tool switches to be considered suspicious (in milliseconds)
+  tool_switch_interval: 50
+  # Whether to check for unnatural tool usage like breaking blocks much faster than expected
+  check_unnatural_usage: true
+  # Commands to execute at specific violation levels.
+  thresholds:
+    40: "<YOUR_STAFFCHAT_COMMAND> {player} in {world} is suspected for AutoTool"
+    80: "<YOUR_STAFFCHAT_COMMAND> {player} in {world} is highly suspected for AutoTool"
+    150: "kick {player} AutoTool"
+
 # AutoFish identifies automatic fishing bots.
 # If you have modified fishing time and/or behaviour, please test if this check is compatible with your setup.
 # This check automatically disables itself on Minecraft versions below 1.11 because of changes to the Spigot API.
