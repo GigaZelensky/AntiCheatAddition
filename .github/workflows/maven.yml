@@ -2,7 +2,7 @@ name: Build AntiCheatAddition
 
 on:
   push:
-    branches: [ main, master, dev ]
+    branches: [ main, master, dev, autotool ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch: # Allows manual triggering
