@@ -84,14 +84,17 @@ public final class Data
     {
         public final Map<TimeKey, DoubleStatistics> autoFishConsistencyData = Map.of(TimeKey.AUTOFISH_DETECTION, new DoubleStatistics(), TimeKey.AUTOFISH_AFK_DETECTION, new DoubleStatistics());
         public AutoPotion.AutoPotionState autoPotionState = AutoPotion.AutoPotionState.AWAIT_POTION_THROW;
-
+    
         public Material dupingDoubleDroppedMaterial = Material.BEDROCK;
-
+    
         // This contains all the locations currently in the check queue so that opening a chest twice does not cause a double vl.
         public final Set<Location> dupingSecretCacheCurrentlyCheckedLocations = ConcurrentHashMap.newKeySet();
-
+    
         public ItemStack lastConsumedItemStack = null;
         public volatile Material lastMaterialClicked = Material.BEDROCK;
         public OptionalInt skinComponents = OptionalInt.empty();
+        
+        // For AutoTool check - stores the block currently being broken
+        public org.bukkit.block.Block autoToolTargetBlock = null;
     }
 }

@@ -37,6 +37,7 @@ permissions:
     children:
       anticheataddition.bypass.sentinel.*: true
       anticheataddition.bypass.autoeat: true
+      anticheataddition.bypass.autotool: true
       anticheataddition.bypass.autofish: true
       anticheataddition.bypass.autofish.parts.consistency: true
       anticheataddition.bypass.autofish.parts.inhuman_reaction: true
