@@ -7,6 +7,7 @@ import de.photon.anticheataddition.user.data.TimeKey;
 import de.photon.anticheataddition.user.data.batch.ScaffoldBatch;
 import de.photon.anticheataddition.util.inventory.InventoryUtil;
 import de.photon.anticheataddition.util.log.Log;
+import de.photon.anticheataddition.util.minecraft.ping.PingProvider;            // ▼ NEW
 import de.photon.anticheataddition.util.minecraft.world.WorldUtil;
 import de.photon.anticheataddition.util.minecraft.world.material.MaterialUtil;
 import de.photon.anticheataddition.util.violationlevels.Flag;
@@ -19,17 +20,32 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;                              // ▼ NEW
 
+import java.util.Map;                                                           // ▼ NEW
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;                                  // ▼ NEW
 
 @Getter
 public final class Scaffold extends ViolationModule implements Listener
 {
     public static final Scaffold INSTANCE = new Scaffold();
 
-    private final int cancelVl = loadInt(".cancel_vl", 110);
-    private final int timeout = loadInt(".timeout", 1000);
+    private final int cancelVl       = loadInt(".cancel_vl", 110);
+    private final int timeout        = loadInt(".timeout", 1000);
     private final int placementDelay = loadInt(".placement_delay", 238);
+
+    /* ───────── Hot-bar-switch sub-check (similar to AutoTool) ───────── */
+
+    private final int hotbarMinSwitchDelay = loadInt(".parts.Hotbar.min_switch_delay", 150);
+    private final int hotbarStreakWindow   = loadInt(".parts.Hotbar.streak_window",    5000);
+    private final int hotbarMaxPing        = loadInt(".parts.Hotbar.max_ping",         400);
+
+    private record Swap(long time, int fromSlot, int toSlot) {}
+    private record SwapData(Swap lastSwap, int streak, long streakStart) {}
+    private static final Map<User, SwapData> SWAP_STATE = new ConcurrentHashMap<>();
+
+    /* ─────────────────────────────────────────────────────────────────── */
 
     private Scaffold()
     {
@@ -41,6 +57,23 @@ public final class Scaffold extends ViolationModule implements Listener
               ScaffoldSafewalkEdge.INSTANCE,
               ScaffoldSafewalkTiming.INSTANCE,
               ScaffoldSprinting.INSTANCE);
+    }
+
+    // --------------------------------- Hot-bar swap listener --------------------------------- //
+
+    @EventHandler(ignoreCancelled = true)
+    public void onHotbarSwap(PlayerItemHeldEvent event)
+    {
+        final var user = User.getUser(event.getPlayer());
+        if (User.isUserInvalid(user, this)) return;
+
+        long now = System.currentTimeMillis();
+        var old = SWAP_STATE.get(user);
+        SWAP_STATE.put(user, new SwapData(new Swap(now,
+                                                   event.getPreviousSlot(),
+                                                   event.getNewSlot()),
+                                          old == null ? 0 : old.streak,
+                                          old == null ? now : old.streakStart));
     }
 
     // ------------------------------------------- BlockPlace Handling ---------------------------------------------- //
@@ -63,6 +96,8 @@ public final class Scaffold extends ViolationModule implements Listener
     {
         final var user = User.getUser(event.getPlayer());
         if (User.isUserInvalid(user, this)) return;
+
+        int hotbarVl = getHotbarVl(user);                                       // ▼ NEW
 
         final var blockPlaced = event.getBlockPlaced();
         final var face = event.getBlock().getFace(event.getBlockAgainst());
@@ -100,6 +135,8 @@ public final class Scaffold extends ViolationModule implements Listener
             // Check that the player is not placing blocks up / down as that is not scaffolding.
             if (WorldUtil.HORIZONTAL_FACES.contains(face)) vl += handleHorizontalChecks(event, user, face);
 
+            vl += hotbarVl;                                                     // ▼ NEW – add hot-bar VL
+
             if (vl > 0) {
                 this.getManagement().flag(Flag.of(event.getPlayer()).setAddedVl(vl).setCancelAction(cancelVl, () -> {
                     event.setCancelled(true);
@@ -109,6 +146,37 @@ public final class Scaffold extends ViolationModule implements Listener
             }
         }
     }
+
+    /* ---------------- hot-bar swap → place delay check (returns added VL) ---------------- */
+
+    private int getHotbarVl(User user)
+    {
+        var data = SWAP_STATE.get(user);
+        if (data == null) return 0;
+
+        long now = System.currentTimeMillis();
+        long delay = now - data.lastSwap.time();
+        if (delay < 0 || delay > hotbarMinSwitchDelay) return 0;
+        if (!PingProvider.INSTANCE.atMostMaxPing(user.getPlayer(), hotbarMaxPing)) return 0;
+
+        int add = (delay <= 80) ? 20 : 10;
+
+        int streak;
+        long streakStart;
+        if (now - data.streakStart <= hotbarStreakWindow) {
+            streak = data.streak + 1;
+            streakStart = data.streakStart;
+        } else {
+            streak = 1;
+            streakStart = now;
+        }
+        if (streak >= 4) add += 30;
+
+        SWAP_STATE.put(user, new SwapData(data.lastSwap, streak, streakStart));
+        return add;
+    }
+
+    // ------------------------------------ existing helper ------------------------------------ //
 
     private static int handleHorizontalChecks(BlockPlaceEvent event, User user, BlockFace face)
     {

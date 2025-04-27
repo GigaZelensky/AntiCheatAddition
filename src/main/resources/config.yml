@@ -387,6 +387,17 @@ Scaffold:
     # Adds 45 VL.
     Sprinting:
       enabled: true
+    # Detects in-humanly fast hot-bar swaps to blocks just before placement (similar to AutoTool).
+    # Adds 10 – 20 VL per swap, +30 VL after 4 swaps inside streak_window.
+    Hotbar:
+      enabled: true
+      # Ignore players whose ping is higher than this (ms). -1 = no ping check.
+      max_ping: 400
+      # Swaps faster than this delay after the change are flagged (ms).
+      # ↓ Lower = more lenient   ↑ Higher = stricter
+      min_switch_delay: 150
+      # Window (ms) in which 4 rapid swap-place combos trigger the +30 VL bonus.
+      streak_window: 5000
   # Commands to execute at specific violation levels.
   thresholds:
     90: "<YOUR_STAFFCHAT_COMMAND> {player} in {world} is suspected for Scaffold"
