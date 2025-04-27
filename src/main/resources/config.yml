@@ -146,6 +146,8 @@ AutoTool:
   # Swaps faster than this after the first block-hit (or before it) are flagged.
   # ↓ Lower = more lenient   ↑ Higher = stricter
   min_switch_delay: 150
+  # ms window to detect instant “switch back” (+10 VL).
+  back_switch_delay: 150
   # Window (ms) in which 4 rapid swaps trigger the +40 VL streak bonus.
   streak_window: 5000
   # Commands executed when the player’s VL crosses these thresholds.
