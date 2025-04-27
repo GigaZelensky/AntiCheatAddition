@@ -28,27 +28,26 @@ public final class AutoTool extends ViolationModule implements Listener {
     public static final AutoTool INSTANCE = new AutoTool();
     private AutoTool() { super("AutoTool"); }
 
-    /* ───────────────────────── records ───────────────────────── */
+    /* ──────────────────────── records ──────────────────────── */
 
     private record Swap(long time, int fromSlot, int toSlot,
                         ItemStack fromItem, ItemStack toItem) {}
 
-    /** stores the item actually held at the moment of the click */
     private record Click(long time, Material block, int slot,
                          ItemStack heldAtClick) {}
 
     private record Data(Swap lastSwap, Click lastClick,
                         int streak, long streakStart) {}
 
-    /* ───────────────────────── state ───────────────────────── */
+    /* ─────────────────────── state map ─────────────────────── */
 
     private static final Map<User, Data> STATE = new ConcurrentHashMap<>();
 
-    /* ───────────────────────── config helper ───────────────────────── */
+    /* ─────────────────────── helpers ─────────────────────── */
 
     private int cfg(String k, int def) { return loadInt(k, def); }
 
-    /* ───────────────────────── events ───────────────────────── */
+    /* ─────────────────────── events ─────────────────────── */
 
     @EventHandler(ignoreCancelled = true)
     public void onHotbarSwap(PlayerItemHeldEvent e) {
@@ -72,14 +71,13 @@ public final class AutoTool extends ViolationModule implements Listener {
         User u = User.getUser(e.getPlayer());
         if (User.isUserInvalid(u, this)) return;
 
-        ItemStack heldNow = e.getPlayer().getInventory().getItem(
-                e.getPlayer().getInventory().getHeldItemSlot());
+        ItemStack held = e.getPlayer().getInventory()
+                          .getItem(e.getPlayer().getInventory().getHeldItemSlot());
 
-        Click click = new Click(
-                System.currentTimeMillis(),
-                e.getClickedBlock().getType(),
-                e.getPlayer().getInventory().getHeldItemSlot(),
-                heldNow);
+        Click click = new Click(System.currentTimeMillis(),
+                                e.getClickedBlock().getType(),
+                                e.getPlayer().getInventory().getHeldItemSlot(),
+                                held);
 
         STATE.merge(u, new Data(null, click, 0, 0),
                 (old, n) -> new Data(old.lastSwap, click, old.streak, old.streakStart));
@@ -98,26 +96,26 @@ public final class AutoTool extends ViolationModule implements Listener {
         long delay = System.currentTimeMillis() - d.lastClick.time();
         if (delay > cfg(".min_switch_delay", 150)) return;
 
-        ItemStack was = d.lastClick.heldAtClick();                      // correct “before” tool
+        ItemStack was = d.lastClick.heldAtClick();
         ItemStack now = e.getPlayer().getInventory().getItem(e.getNewSlot());
 
         evaluateSuspicion(u, e.getPlayer(), d, was, now, delay, d.lastClick.block());
     }
 
-    /* ─── evaluate swap-before-hit pattern ─── */
+    /* ───────── swap-before-hit evaluation ───────── */
 
     private void evaluateBeforeHitPath(User u, org.bukkit.entity.Player p, Click click) {
         Data d = STATE.get(u);
         if (d == null || d.lastSwap == null) return;
 
-        long delay = click.time() - d.lastSwap.time();                  // swap → click
+        long delay = click.time() - d.lastSwap.time();      // swap → click
         if (delay < 0 || delay > cfg(".min_switch_delay", 150)) return;
 
-        evaluateSuspicion(u, p, d, d.lastSwap.fromItem(), d.lastSwap.toItem(),
-                          delay, click.block());
+        evaluateSuspicion(u, p, d,
+                d.lastSwap.fromItem(), d.lastSwap.toItem(), delay, click.block());
     }
 
-    /* ─── common suspicion handler ─── */
+    /* ───────── core suspicion logic ───────── */
 
     private void evaluateSuspicion(User u, org.bukkit.entity.Player p, Data d,
                                    ItemStack wrongTool, ItemStack rightTool,
@@ -130,10 +128,9 @@ public final class AutoTool extends ViolationModule implements Listener {
 
         int add = (delay <= 80) ? 35 : 25;
 
-        long now = System.currentTimeMillis();
-        long window = cfg(".streak_window", 5000);
-
-        int streak  = (now - d.streakStart <= window) ? d.streak + 1 : 1;
+        long now   = System.currentTimeMillis();
+        long win   = cfg(".streak_window", 5000);
+        int streak = (now - d.streakStart <= win) ? d.streak + 1 : 1;
         long sStart = (streak == 1) ? now : d.streakStart;
         if (streak >= 4) add += 40;
 
@@ -151,34 +148,69 @@ public final class AutoTool extends ViolationModule implements Listener {
         );
     }
 
-    /* ─── tool ↔ block match ─── */
+    /* ───────── meteor-proof block↔tool matcher ───────── */
 
     private static boolean isCorrectTool(Material block, ItemStack tool) {
         if (tool == null) return false;
 
         Material t = tool.getType();
-        String b = block.name();
+        String  b = block.name();                 // UPPER_SNAKE_CASE
 
+        /* Shears */
         if (t == Material.SHEARS)
-            return b.contains("WOOL") || b.contains("LEAVES") || b.equals("COBWEB");
+            return b.contains("LEAVES") || b.contains("WOOL") || b.equals("COBWEB");
+
+        /* Sword (Meteor quirk) */
+        if (t.name().endsWith("_SWORD"))
+            return b.equals("BAMBOO") || b.equals("BAMBOO_SHOOT");
 
         boolean axe    = t.name().endsWith("_AXE");
         boolean pick   = t.name().endsWith("_PICKAXE");
         boolean shovel = t.name().endsWith("_SHOVEL");
         boolean hoe    = t.name().endsWith("_HOE");
 
-        if (axe && (b.endsWith("_LOG") || b.contains("WOOD")   || b.contains("BAMBOO"))) return true;
-        if (pick&& (b.contains("STONE") || b.contains("ORE")   || b.equals("ANCIENT_DEBRIS"))) return true;
-        if (shovel && (b.contains("DIRT") || b.contains("GRAVEL") || b.contains("SAND")
-                       || b.contains("SNOW") || b.endsWith("_DIRT") || b.contains("MUD")
-                       || b.contains("CLAY") || b.equals("GRASS_BLOCK")
-                       || b.equals("MYCELIUM"))) return true;
-        return hoe && (b.contains("HAY") || b.contains("CROP") || b.contains("WART"));
+        /* Pickaxe */
+        if (pick && (
+                b.contains("STONE") || b.contains("DEEPSLATE") || b.contains("ORE")
+             || b.contains("TERRACOTTA") || b.endsWith("_BLOCK")
+             || b.equals("OBSIDIAN") || b.equals("CRYING_OBSIDIAN")
+             || b.equals("NETHERRACK") || b.equals("END_STONE")
+             || b.equals("RAW_IRON_BLOCK") || b.equals("RAW_GOLD_BLOCK")
+             || b.equals("RAW_COPPER_BLOCK") || b.equals("ANCIENT_DEBRIS")
+        )) return true;
+
+        /* Axe */
+        if (axe && (
+                b.contains("WOOD") || b.endsWith("_LOG") || b.contains("PLANKS")
+             || b.contains("BAMBOO") || b.contains("CHEST") || b.equals("BARREL")
+             || b.contains("BOOKSHELF") || b.equals("LADDER")
+             || b.contains("SIGN") || b.contains("CAMPFIRE")
+             || b.equals("NOTE_BLOCK") || b.endsWith("_TABLE")
+        )) return true;
+
+        /* Shovel */
+        if (shovel && (
+                b.contains("DIRT") || b.contains("GRAVEL") || b.contains("SAND")
+             || b.contains("SNOW") || b.contains("MUD") || b.contains("CLAY")
+             || b.equals("GRASS_BLOCK") || b.equals("PODZOL")
+             || b.equals("ROOTED_DIRT") || b.endsWith("CONCRETE_POWDER")
+             || b.equals("SOUL_SAND") || b.equals("SOUL_SOIL")
+        )) return true;
+
+        /* Hoe */
+        if (hoe && (
+                b.contains("HAY") || b.contains("CROP") || b.contains("WART")
+             || b.contains("LEAVES") || b.contains("MOSS") || b.equals("DRIED_KELP_BLOCK")
+             || b.equals("TARGET")
+        )) return true;
+
+        return false;
     }
 
-    /* ─── violation management ─── */
+    /* ───────── violation management ───────── */
 
-    @Override protected ViolationManagement createViolationManagement() {
+    @Override
+    protected ViolationManagement createViolationManagement() {
         return ViolationLevelManagement.builder(this)
                                        .loadThresholdsToManagement()
                                        .withDecay(6000L, 15)
