@@ -122,13 +122,13 @@ public final class AutoTool extends ViolationModule implements Listener {
 
         if (!PingProvider.INSTANCE.atMostMaxPing(p, cfg(".max_ping",400))) return;
 
-        int addVl = (delay <= 80) ? 35 : 25;
+        int addVl = (delay <= 80) ? 20 : 10;
 
         long now   = System.currentTimeMillis();
         long win   = cfg(".streak_window",5000);
         int  streak= (now - d.streakStart <= win)? d.streak+1 : 1;
         long start = (streak==1)? now : d.streakStart;
-        if (streak>=4) addVl += 40;
+        if (streak>=4) addVl += 30;
 
         STATE.put(u, new Data(d.lastSwap,d.lastClick,streak,start));
 
